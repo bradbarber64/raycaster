@@ -68,7 +68,8 @@ int readFile(char fileName[]) {
 
   char str[15];
   Object objects[128];
-  Object currentOBJ = objects[0];
+  int index = 0;
+  Object currentOBJ = objects[index];
   // instantiate an object called currentOBJ
   
   while (!feof(fh)) {
@@ -144,6 +145,18 @@ int readFile(char fileName[]) {
   fclose(fh);
 }
 
+float[] constructRay(float R_o[], int x, int y, int z) {
+  // R_o is aperture (camera origin)
+  // R_d is aperture - pixel position in space
+  // R_d is normalized
+  // float R_o[] = [0,0,0]
+  // float pixel[] = [x, y, z];
+  float R_d[];
+  R_d = v3_subtract(R_d, R_o, pixel)
+
+}
+
+
 
 // FUNCTION for SPHERE intersection
 int intersectSphere(Object *sphere, float ray[3]) {
@@ -193,13 +206,6 @@ int main(int argc, char **argv) {
   for (int x = 0; x < imageWidth; x += 1) {
     for (int y = 0; y < imageHeight; y += 1) {
       // construct ray R(t) = R_o + t * R_d
-      // R_o is aperture (camera origin)
-      // R_d is aperture - pixel position in space
-      // R_d is normalized
-      // float R_o[] = [0,0,0]
-      // float pixel[] = [x, y, z]
-      // float R_d[];
-      // R_d = v3_subtract(R_d, R_o, pixel)
 
       int nearestT = 0;
       Object nearestObj;
