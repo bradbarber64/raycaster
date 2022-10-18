@@ -2,13 +2,21 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 #include "v3math.c"
 
+
+// GLOBAL VARIABLES
+char fileIn[15];
+char fileOut[15];
+
+
+
+// FUNCTION for usage help
 void help() {
   printf("Usage: raycaster IMAGE_WIDTH IMAGE_HEIGHT FILE_IN FILE_OUT\n");
   exit(0);
 }
-
 
 // STRUCT for storing objects
 typedef struct Object {
@@ -23,7 +31,7 @@ typedef struct Object {
   union {
     // sphere properties
     struct {
-      float position[3];
+      float center[3];
       float radius;
     };
     
@@ -36,8 +44,9 @@ typedef struct Object {
     struct {
       float width;
       float height;
-    }
+    };
   };
+
   float color[3];
   // add other properties later
   
@@ -49,7 +58,7 @@ Object objects[128];
 
 
 // FUNCTION for reading CSV data
-int readFile(fileName) {
+int readFile(char fileName[]) {
   char maxLines[128];
   FILE *fh;
   
@@ -63,7 +72,7 @@ int readFile(fileName) {
 
   // instantiate an object called currentOBJ
   
-  while (!FEOF) {
+  while (!feof(fh)) {
     fscanf(fh, "%s ", &str);
     
     // CAMERA CHECK
@@ -137,13 +146,13 @@ int readFile(fileName) {
 
 
 // FUNCTION for SPHERE intersection
-int intersectSphere(Object sphere) {
+int intersectSphere(Object sphere, float ray[3]) {
   printf("sphere intersection\n");
   return 0;
 }
 
 // FUNCTION for PLANE intersection
-int intersectPlane(Object plane) {
+int intersectPlane(Object plane, float ray[3]) {
   printf("plane intersection\n");
   return 0;
 }
@@ -151,7 +160,7 @@ int intersectPlane(Object plane) {
 
 
 // FUNCTION for writing ppm image
-void writeFile(fileOut) {
+void writeFile(char fileOut[]) {
   printf("hi\n");
 }
 
@@ -165,8 +174,8 @@ int main(int argc, char **argv) {
   int imageWidth = atoi(argv[1]);
   int imageHeight = atoi(argv[2]);
 
-  char fileIn[] = argv[3];
-  char fileOut[] = argv[4];
+  char fileIn[15] = argv[3];
+  char fileOut[15] = argv[4];
 
   uint8_t *image = malloc(imageWidth*imageHeight*3);
 
@@ -199,6 +208,9 @@ int main(int argc, char **argv) {
   }
 
   // writeFile(fileOut);
+
+  free(image);
+  fclose(fh)
   
   return 0;
 }
