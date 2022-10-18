@@ -54,6 +54,11 @@ typedef struct Object {
 // For now, static alloc - will change to LL
 // Object objects[128];
 
+Object *objects;
+size = sizeof(Object);
+objects = malloc(1*size);
+objects = realloc(objects, 2*size);
+
 
 // FUNCTION for reading CSV data
 int readFile(char fileName[]) {
@@ -183,7 +188,7 @@ void writeFile(char *fileOut, int width,
 
 
 // MAIN FUNCTION
-int main(int argc, char **argv) {
+int main(int argc, char* argv[]) {
   if (argc != 5) {
     help();
   }
@@ -214,7 +219,7 @@ int main(int argc, char **argv) {
 
       int nearestT = 0;
       Object nearestObj;
-      for (int i = 0; i < 128; i += 1) {
+      for (int i = 0; i < 2; i += 1) {
 	Object *current = &objects[i];
 	if (plane) {
 	  int t = intersectPlane(current, ray);
