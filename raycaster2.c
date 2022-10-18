@@ -68,7 +68,8 @@ int readFile(char fileName[]) {
 
   char str[15];
   Object objects[128];
-  Object currentOBJ = objects[0];
+  int index = 0;
+  Object currentOBJ = objects[index];
   // instantiate an object called currentOBJ
   
   while (!feof(fh)) {
@@ -144,6 +145,18 @@ int readFile(char fileName[]) {
   fclose(fh);
 }
 
+float constructRay(float R_o[], int x, int y, int z) {
+  // R_o is aperture (camera origin)
+  // R_d is aperture - pixel position in space
+  // R_d is normalized
+  // float R_o[] = [0,0,0]
+  float pixel[] = {x, y, z};
+  float R_d[3];
+  v3_subtract(R_d, R_o, pixel);
+
+}
+
+
 
 // FUNCTION for SPHERE intersection
 int intersectSphere(Object *sphere, float ray[3]) {
@@ -160,8 +173,12 @@ int intersectPlane(Object *plane, float ray[3]) {
 
 
 // FUNCTION for writing ppm image
-void writeFile(char fileOut[]) {
-  printf("hi\n");
+void writeFile(char *fileOut, int width,
+	       int height, uint8_t *image) {
+  FILE *fh = fopen(fileOut, "wb");
+  fprintf(fh, "P6 %d %d 255\n", width, height);
+  fwrite(image, sizeof(uint8_t), width*height*3, fh);
+  fclose(fh);
 }
 
 
@@ -193,13 +210,7 @@ int main(int argc, char **argv) {
   for (int x = 0; x < imageWidth; x += 1) {
     for (int y = 0; y < imageHeight; y += 1) {
       // construct ray R(t) = R_o + t * R_d
-      // R_o is aperture (camera origin)
-      // R_d is aperture - pixel position in space
-      // R_d is normalized
-      // float R_o[] = [0,0,0]
-      // float pixel[] = [x, y, z]
-      // float R_d[];
-      // R_d = v3_subtract(R_d, R_o, pixel)
+      float ray[] = {0, 0, 0};
 
       int nearestT = 0;
       Object nearestObj;
@@ -219,7 +230,7 @@ int main(int argc, char **argv) {
     }
   }
 
-  // writeFile(fileOut);
+  writeFile(fileOut, imageWidth, imageHeight, image);
 
   free(image);
   
