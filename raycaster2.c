@@ -3,12 +3,18 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <math.h>
 #include "v3math.c"
 
 
 // GLOBAL VARIABLES
 char *fileIn, *fileOut;
 enum objType {none, camera, sphere, plane};
+
+
+void printArr(float arr[3]) {
+  printf("[%f, %f, %f]\n", arr[0], arr[1], arr[2]);
+}
 
 
 // FUNCTION for usage help
@@ -161,12 +167,13 @@ int readFile(char fileName[], Object *objects) {
   fclose(fh);
 }
 
-void constructRay(float ray[], float R_o[], int pixel[],
+void constructR_d(float R_d[], float R_o[], int pixel[],
 		   int imgW, int imgH,
 		   float camW, float camH ) {
   // R_o is aperture (camera origin)
   // R_d is aperture - pixel position in space
   // R_d is normalized
+  // Ray = Ro + t(Rd)
   // float R_o[] = [0,0,0]
   float pixW = camW / imgW;
   float pixH = camH / imgH;
@@ -174,21 +181,65 @@ void constructRay(float ray[], float R_o[], int pixel[],
   float y0 = (camH/2 + pixH/2) + (pixH * pixel[1]);
   float z0 = pixel[2]; // z coord of current pixel
   float pixel0[] = {x0, y0, z0};
-  float R_d[3];
   v3_subtract(R_d, R_o, pixel0);
-  v3_normalize(ray, R_d);
+  v3_normalize(R_d, R_d);
+  //ray[0] = R_o[0] + t*R_d[0];
 }
 
 
 
 // FUNCTION for SPHERE intersection
-int intersectSphere(Object *sphere, float ray[3]) {
-  printf("sphere intersection\n");
-  return 0;
+int intersectSphere(Object *sphere, float R_o[3], float R_d[3]) {
+  float Xd = R_d[0];
+  float Yd = R_d[1];
+  float Zd = R_d[2];
+  //  printf("R_d: ");
+  // printArr(R_d);
+  float Xo = R_o[0];
+  float Yo = R_o[1];
+  float Zo = R_o[2];
+  //  printf("R_o: ");
+  //  printArr(R_o);
+  float Xs = sphere->center[0];
+  float Ys = sphere->center[1];
+  float Zs = sphere->center[2];
+  //   printf("sphere center: ");
+  //  printArr(sphere->center);
+  float A = pow(Xd, 2) + pow(Yd, 2) + pow(Zd, 2);
+  float B = 2 * ( Xd*(Xo - Xs) + Yd*(Yo - Ys) + Zd*(Zo - Zs) );
+  float C = pow((Xo - Xs), 2) + pow((Yo - Ys), 2) + pow((Zo - Zs), 2) - pow(sphere->radius, 2);
+
+  //  printf("A: %f, B: %f, C: %f\n", A, B, C);
+  //  printf("B^2: %f\n", pow(B, 2));
+  
+  int t0 = 0;
+  int t1 = 0;
+  int discr = pow(B, 2) - 4*C;
+  printf("discr: %i\n", discr);
+
+  if (discr < 0) {
+    return 0;
+  }
+  else {
+    t0 = -B - sqrt(discr) / 2*A;
+    t1 = -B + sqrt(discr) / 2*A;
+    printf("T0: %i, T1: %i\n", t0, t1);
+  
+      if (t0 < 0 && t1 < 0) {
+	return 0;
+      }
+      else if (t0 < 0 || t1 <= t0) {
+	  return t1;
+      }
+      else {
+	return t0;
+      }
+  }
+  
 }
 
 // FUNCTION for PLANE intersection
-int intersectPlane(Object *plane, float ray[3]) {
+int intersectPlane(Object *plane, float R_o[3], float R_d[3]) {
   printf("plane intersection\n");
   return 0;
 }
@@ -245,21 +296,23 @@ int main(int argc, char* argv[]) {
     for (int y = 0; y < imageHeight; y += 1) {
       //constructRay(float ray[], float R_o[], int pixel[], int imgW, int imgH,float camW, float camH);
       int pixel[] = {x, y, z};
-      float ray[] = {0, 0, 0};
-      constructRay(ray, R_o, pixel,
+      float R_d[3];
+      constructR_d(R_d, R_o, pixel,
 		   imageWidth, imageHeight,
 		   camera.width, camera.height);
 
+      
       int nearestT = 0;
       Object nearestObj;
       for (int i = 0; i < 3; i += 1) {
 	Object *current = &objects[i];
 	//printf("current obj: %i.\n", current->kind);
 	if (current->kind == 3) {
-	  int t = intersectPlane(current, ray);
+	  int t = intersectPlane(current, R_o, R_d);
 	}
 	if (current->kind == 2) {
-	  int t = intersectSphere(current, ray);
+	  int t = intersectSphere(current, R_o, R_d);
+	  printf("T = %i\n", t);
 	}
 	// set nearestObj from nearestT
 	// get color from nearestObj
