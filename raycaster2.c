@@ -8,7 +8,7 @@
 
 // GLOBAL VARIABLES
 char *fileIn, *fileOut;
-enum objType {none, camera, plane, sphere};
+enum objType {none, camera, sphere, plane};
 
 
 // FUNCTION for usage help
@@ -18,7 +18,7 @@ void help() {
 }
 
 // STRUCT for storing objects
-typedef struct Object {
+typedef struct {
 
   // 0 = Not an object ( default )
   // 1 = camera
@@ -54,14 +54,13 @@ typedef struct Object {
 // For now, static alloc - will change to LL
 // Object objects[128];
 
-Object *objects;
-size = sizeof(Object);
-objects = malloc(1*size);
-objects = realloc(objects, 2*size);
+/* struct Object *objects; */
+/* objects = (struct Object *)malloc(sizeof(struct Object)*1); */
+// objects = realloc(objects, 2*size);
 
 
 // FUNCTION for reading CSV data
-int readFile(char fileName[]) {
+int readFile(char fileName[], Object *objects) {
   char maxObjects[128];
   FILE *fh;
   
@@ -72,93 +71,112 @@ int readFile(char fileName[]) {
   }
 
   char str[15];
-  Object objects[128];
+  float f = 0;
+  // Object objects[128];
   int index = 0;
-  Object currentOBJ = objects[index];
+  //Object currentOBJ;
   // instantiate an object called currentOBJ
   
   while (!feof(fh)) {
-    fscanf(fh, "%s ", &str);
-    
+    printf("OBJ num: %i.\n", index);
+    fscanf(fh, "%s, ", &str);
+    printf("main str: %s.\n", str);
+    Object currentOBJ;
     // CAMERA CHECK
-    if (strcmp(str, "camera, ") == 1) {
+    if (strcmp(str, "camera,") == 0) {
       // set type of object
       currentOBJ.kind = 1;
-      while (strcmp(str, "\n") != 1) {
+      for (int i = 0; i < 2; i += 1) {  // this is specific to camera (may change later)
 	fscanf(fh, "%s ", &str);
-	if (strcmp(str, "width: ") == 1) {
-	  fscanf(fh, "%f ", currentOBJ.width);
+	if (strcmp(str, "width:") == 0) {
+	  fscanf(fh, "%f, ", &currentOBJ.width);
 	}
-	if (strcmp(str, "height: ") == 1) {
-	  fscanf(fh, "%f ", currentOBJ.height);
+	if (strcmp(str, "height:") == 0) {
+	  fscanf(fh, "%f, ", &currentOBJ.height);
 	}
       }
-    }
-
-    // PLANE CHECK
-    if (strcmp(str, "plane, ") == 1) {
-      // set type of object
-      while (strcmp(str, "\n") != 1) {
-	fscanf(fh, "%s ", &str);
-	if (strcmp(str, "position: ") == 1) {
-	  fscanf(fh, "[%f, %f, %f]",
-		 currentOBJ.position[0],
-		 currentOBJ.position[1],
-		 currentOBJ.position[2]);
-	}
-	if (strcmp(str, "radius: ") == 1) {
-	  fscanf(fh, "%f ", currentOBJ.radius);
-	}
-	if (strcmp(str, "color: ") == 1) {
-	  fscanf(fh, "[%f, %f, %f]",
-		 currentOBJ.color[0],
-		 currentOBJ.color[1],
-		 currentOBJ.color[2]);
-	}
-      }
+      printf("Checkpoint: got a camera object\n");
     }
 
     // SPHERE CHECK
-    if (strcmp(str, "sphere, ") == 1) {
+    if (strcmp(str, "sphere,") == 0) {
       // set type of object
-      while (strcmp(str, "\n") != 1) {
+      currentOBJ.kind = 2;
+      for (int j = 0; j < 3; j += 1) {
 	fscanf(fh, "%s ", &str);
-	if (strcmp(str, "position: ") == 1) {
-	  fscanf(fh, "[%f, %f, %f]",
-		 currentOBJ.center[0],
-		 currentOBJ.center[1],
-		 currentOBJ.center[2]);
+	if (strcmp(str, "position:") == 0) {
+	  fscanf(fh, "[%f, %f, %f], ",
+		 &currentOBJ.center[0],
+		 &currentOBJ.center[1],
+		 &currentOBJ.center[2]);
 	}
-	if (strcmp(str, "normal: ") == 1) {
-	  fscanf(fh, "[%f, %f, %f]",
-		 currentOBJ.n[0],
-		 currentOBJ.n[1],
-		 currentOBJ.n[2]);
+	if (strcmp(str, "radius:") == 0) {
+	  fscanf(fh, "%f, ", &currentOBJ.radius);
 	}
-	if (strcmp(str, "color: ") == 1) {
-	  fscanf(fh, "[%f, %f, %f]",
-		 currentOBJ.color[0],
-		 currentOBJ.color[1],
-		 currentOBJ.color[2]);
+	if (strcmp(str, "color:") == 0) {
+	  fscanf(fh, "[%f, %f, %f], ",
+		 &currentOBJ.color[0],
+		 &currentOBJ.color[1],
+		 &currentOBJ.color[2]);
 	}
       }
+
+      printf("Checkpoint: got sphere object\n");
     }
 
+    // PLANE CHECK
+    if (strcmp(str, "plane,") == 0) {
+      // set type of object
+      currentOBJ.kind = 3;
+      for (int k = 0; k < 3; k += 1) {
+	fscanf(fh, "%s ", &str);
+	if (strcmp(str, "position:") == 0) {
+	  fscanf(fh, "[%f, %f, %f], ",
+		 &currentOBJ.position[0],
+		 &currentOBJ.position[1],
+		 &currentOBJ.position[2]);
+	}
+	if (strcmp(str, "normal:") == 0) {
+	  fscanf(fh, "[%f, %f, %f], ",
+		 &currentOBJ.n[0],
+		 &currentOBJ.n[1],
+		 &currentOBJ.n[2]);
+	}
+	if (strcmp(str, "color:") == 0) {
+	  fscanf(fh, "[%f, %f, %f], ",
+		 &currentOBJ.color[0],
+		 &currentOBJ.color[1],
+		 &currentOBJ.color[2]);
+	}
+      }
+
+      printf("Checkpoint: got plane object\n");
+    }
+
+    objects[index] = currentOBJ;
+    index += 1;
     // Store currentOBJ in LinkedList
   }
   
   fclose(fh);
 }
 
-float constructRay(float R_o[], int x, int y, int z) {
+void constructRay(float ray[], float R_o[], int pixel[],
+		   int imgW, int imgH,
+		   float camW, float camH ) {
   // R_o is aperture (camera origin)
   // R_d is aperture - pixel position in space
   // R_d is normalized
   // float R_o[] = [0,0,0]
-  float pixel[] = {x, y, z};
+  float pixW = camW / imgW;
+  float pixH = camH / imgH;
+  float x0 = (-camW/2 + pixW/2) + (pixW * pixel[0]);
+  float y0 = (camH/2 + pixH/2) + (pixH * pixel[1]);
+  float z0 = pixel[2]; // z coord of current pixel
+  float pixel0[] = {x0, y0, z0};
   float R_d[3];
-  v3_subtract(R_d, R_o, pixel);
-
+  v3_subtract(R_d, R_o, pixel0);
+  v3_normalize(ray, R_d);
 }
 
 
@@ -173,6 +191,17 @@ int intersectSphere(Object *sphere, float ray[3]) {
 int intersectPlane(Object *plane, float ray[3]) {
   printf("plane intersection\n");
   return 0;
+}
+
+Object getObject(Object *objects, enum objType kind) {
+  int index = 0;
+  Object current = objects[0];
+  while (current.kind != kind) {
+    index += 1;
+    current = objects[index];
+  }
+
+  return current;
 }
 
 
@@ -193,6 +222,8 @@ int main(int argc, char* argv[]) {
     help();
   }
 
+  Object *objects = malloc(sizeof(Object)*3); // 3 is for current num objects
+  
   int imageWidth = atoi(argv[1]);
   int imageHeight = atoi(argv[2]);
 
@@ -201,30 +232,33 @@ int main(int argc, char* argv[]) {
 
   uint8_t *image = malloc(imageWidth*imageHeight*3);
 
-  // either set LL here and pass in, or set LL in readFile
-  
-  readFile(fileIn);
+  readFile(fileIn, objects);
+  printf("Checkpoint: read scene file\n");
 
-  // RECOMMENDED:
-  // get project working with statically allocated mem,
-  // then get fancy
+  // get camera data
+  Object camera = getObject(objects, 1);
+  float R_o[] = {0, 0, 0};
 
-  
-  Object *objects;
+  int z = -1;
   // Do intersections for every pixel (x, y)
   for (int x = 0; x < imageWidth; x += 1) {
     for (int y = 0; y < imageHeight; y += 1) {
-      // construct ray R(t) = R_o + t * R_d
+      //constructRay(float ray[], float R_o[], int pixel[], int imgW, int imgH,float camW, float camH);
+      int pixel[] = {x, y, z};
       float ray[] = {0, 0, 0};
+      constructRay(ray, R_o, pixel,
+		   imageWidth, imageHeight,
+		   camera.width, camera.height);
 
       int nearestT = 0;
       Object nearestObj;
-      for (int i = 0; i < 2; i += 1) {
+      for (int i = 0; i < 3; i += 1) {
 	Object *current = &objects[i];
-	if (plane) {
+	//printf("current obj: %i.\n", current->kind);
+	if (current->kind == 3) {
 	  int t = intersectPlane(current, ray);
 	}
-	if (sphere) {
+	if (current->kind == 2) {
 	  int t = intersectSphere(current, ray);
 	}
 	// set nearestObj from nearestT
@@ -237,6 +271,7 @@ int main(int argc, char* argv[]) {
 
   writeFile(fileOut, imageWidth, imageHeight, image);
 
+  free(objects);
   free(image);
   
   return 0;
