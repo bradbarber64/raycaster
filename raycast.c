@@ -10,7 +10,7 @@
 // GLOBAL VARIABLES
 char *fileIn, *fileOut;
 enum objType {none, camera, sphere, plane};
-
+int numObjects = 0;
 
 void printArr(float arr[3]) {
   printf("[%f, %f, %f]\n", arr[0], arr[1], arr[2]);
@@ -161,7 +161,7 @@ int readFile(char fileName[], Object *objects) {
 
     objects[index] = currentOBJ;
     index += 1;
-    // Store currentOBJ in LinkedList
+    //realloc(objects, sizeof(Object)*(index + 1));
   }
   
   fclose(fh);
@@ -178,12 +178,13 @@ void constructR_d(float R_d[], float R_o[], int pixel[],
   float pixW = camW / imgW;
   float pixH = camH / imgH;
   float x0 = (-camW/2 + pixW/2) + (pixW * pixel[0]);
-  float y0 = (camH/2 + pixH/2) + (pixH * pixel[1]);
+  float y0 = (camH/2 - pixH/2) - (pixH * pixel[1]);
   float z0 = pixel[2]; // z coord of current pixel
   float pixel0[] = {x0, y0, z0};
-  v3_subtract(R_d, R_o, pixel0);
+  printf("pixel0: ");
+  printArr(pixel0);
+  v3_from_points(R_d, R_o, pixel0);
   v3_normalize(R_d, R_d);
-  //ray[0] = R_o[0] + t*R_d[0];
 }
 
 
@@ -193,24 +194,24 @@ int intersectSphere(Object *sphere, float R_o[3], float R_d[3]) {
   float Xd = R_d[0];
   float Yd = R_d[1];
   float Zd = R_d[2];
-  //  printf("R_d: ");
-  // printArr(R_d);
+  printf("R_d: ");
+  printArr(R_d);
   float Xo = R_o[0];
   float Yo = R_o[1];
   float Zo = R_o[2];
-  //  printf("R_o: ");
-  //  printArr(R_o);
+  printf("R_o: ");
+  printArr(R_o);
   float Xs = sphere->center[0];
   float Ys = sphere->center[1];
   float Zs = sphere->center[2];
-  //   printf("sphere center: ");
-  //  printArr(sphere->center);
+  printf("sphere center: ");
+  printArr(sphere->center);
   float A = pow(Xd, 2) + pow(Yd, 2) + pow(Zd, 2);
-  float B = 2 * ( Xd*(Xo - Xs) + Yd*(Yo - Ys) + Zd*(Zo - Zs) );
+  float B = 2 * ( (Xd*(Xo - Xs)) + (Yd*(Yo - Ys)) + (Zd*(Zo - Zs)) );
   float C = pow((Xo - Xs), 2) + pow((Yo - Ys), 2) + pow((Zo - Zs), 2) - pow(sphere->radius, 2);
 
-  //  printf("A: %f, B: %f, C: %f\n", A, B, C);
-  //  printf("B^2: %f\n", pow(B, 2));
+  printf("A: %f, B: %f, C: %f\n", A, B, C);
+  printf("B^2: %f\n", pow(B, 2));
   
   int t0 = 0;
   int t1 = 0;
@@ -221,9 +222,10 @@ int intersectSphere(Object *sphere, float R_o[3], float R_d[3]) {
     return 0;
   }
   else {
-    t0 = -B - sqrt(discr) / 2*A;
-    t1 = -B + sqrt(discr) / 2*A;
-    printf("T0: %i, T1: %i\n", t0, t1);
+    t0 = (-B - sqrt(discr)) / 2*A;
+    t1 = (-B + sqrt(discr)) / 2*A;
+    printf("T0: %i\n", t0);
+    printf("T1: %i\n", t1);
   
       if (t0 < 0 && t1 < 0) {
 	return 0;
@@ -235,13 +237,41 @@ int intersectSphere(Object *sphere, float R_o[3], float R_d[3]) {
 	return t0;
       }
   }
+
+  printf("sphere intersection\n");
   
 }
 
 // FUNCTION for PLANE intersection
 int intersectPlane(Object *plane, float R_o[3], float R_d[3]) {
+  float P_n[3];
+  P_n[0] = plane->n[0];
+  P_n[1] = plane->n[1];
+  P_n[2] = plane->n[2];
+  printf("P_n: ");
+  printArr(P_n);
+  float P_o[3];
+  P_o[0] = plane->position[0];
+  P_o[1] = plane->position[1];
+  P_o[2] = plane->position[2];
+  printf("P_o: ");
+  printArr(P_o);
+
+  float D = -(v3_dot_product(P_n, P_o));
+  printf("D: %f\n", D);
+  float num = - ((v3_dot_product(P_n, R_o)) + D);
+  printf("num: %f\n", num);
+  float denom = v3_dot_product(P_n, R_d);
+  printf("denom: %f\n", denom);
+  
+  int t = num / denom;
+
+  if (t < 0) {
+    return 0;
+  }
+  
   printf("plane intersection\n");
-  return 0;
+  return t;
 }
 
 Object getObject(Object *objects, enum objType kind) {
@@ -273,7 +303,7 @@ int main(int argc, char* argv[]) {
     help();
   }
 
-  Object *objects = malloc(sizeof(Object)*3); // 3 is for current num objects
+  Object *objects = malloc(sizeof(Object)*128);
   
   int imageWidth = atoi(argv[1]);
   int imageHeight = atoi(argv[2]);
@@ -290,33 +320,58 @@ int main(int argc, char* argv[]) {
   Object camera = getObject(objects, 1);
   float R_o[] = {0, 0, 0};
 
-  int z = -1;
   // Do intersections for every pixel (x, y)
   for (int x = 0; x < imageWidth; x += 1) {
     for (int y = 0; y < imageHeight; y += 1) {
-      //constructRay(float ray[], float R_o[], int pixel[], int imgW, int imgH,float camW, float camH);
+      int z = -1;
       int pixel[] = {x, y, z};
       float R_d[3];
       constructR_d(R_d, R_o, pixel,
 		   imageWidth, imageHeight,
 		   camera.width, camera.height);
 
-      
-      int nearestT = 0;
+
+      int t = 1000;
+      int nearestT = 1000; // any t should automatically be less than this
       Object nearestObj;
+      nearestObj.kind = 0;
       for (int i = 0; i < 3; i += 1) {
 	Object *current = &objects[i];
-	//printf("current obj: %i.\n", current->kind);
+	printf("CURRENT OBJ:\n");
+	printf("type: %i\n", current->kind);
+	
 	if (current->kind == 3) {
-	  int t = intersectPlane(current, R_o, R_d);
+	  t = intersectPlane(current, R_o, R_d);
+	  //printf("T = %i\n", t);
 	}
 	if (current->kind == 2) {
-	  int t = intersectSphere(current, R_o, R_d);
-	  printf("T = %i\n", t);
+	  t = intersectSphere(current, R_o, R_d);
+	  //printf("T = %i\n", t);
 	}
-	// set nearestObj from nearestT
+
+	if (t == 0) {
+	  nearestObj.color[0] = 0;
+	  nearestObj.color[1] = 0;
+	  nearestObj.color[2] = 0;
+	}
+	
+	else if (t < nearestT) {
+	  nearestT = t;
+	  nearestObj = objects[i];
+	}
+	printf("Nearest t, obj: %i, %i\n", nearestT, nearestObj.kind);
+	printf("Nearest obj.color: %f, %f, %f\n", nearestObj.color[0],
+	       nearestObj.color[1], nearestObj.color[2]);
+	
 	// get color from nearestObj
 	// image[] = nearestObject->color;
+      }
+
+      for (int k = 0; k < 3; k += 1) {
+	int p = 3 * (imageWidth * y + x) + k;
+	image[p] = nearestObj.color[k] * 255;
+	//image[j] = nearestObj.color[1];
+	//image[k] = nearestObj.color[2];
       }
       
     }
@@ -329,4 +384,3 @@ int main(int argc, char* argv[]) {
   
   return 0;
 }
-
