@@ -1,0 +1,10 @@
+CC = gcc
+RM = rm -f
+
+all: raycaster
+
+ppm: raycaster.c
+	$(CC) raycaster.c -o raycaster
+
+clean:
+	$(RM) raycaster *~

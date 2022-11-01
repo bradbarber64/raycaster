@@ -22,7 +22,6 @@ void help() {
 
 // STRUCT for storing objects
 typedef struct {
-
   // 0 = Not an object ( default )
   // 1 = camera
   // 2 = plane
@@ -54,12 +53,8 @@ typedef struct {
 } Object;
 
 
-// For now, static alloc - will change to LL
-// Object objects[128];
-
-/* struct Object *objects; */
-/* objects = (struct Object *)malloc(sizeof(struct Object)*1); */
-// objects = realloc(objects, 2*size);
+/* struct Object *objects = (struct Object *)malloc(sizeof(struct Object)*1); */
+/* realloc(objects, 2*size); */
 
 
 // FUNCTION for reading CSV data
@@ -74,11 +69,7 @@ int readFile(char fileName[], Object *objects) {
   }
 
   char str[15];
-  float f = 0;
-  // Object objects[128];
   int index = 0;
-  //Object currentOBJ;
-  // instantiate an object called currentOBJ
   
   while (!feof(fh)) {
     fscanf(fh, "%s, ", &str);
@@ -150,7 +141,7 @@ int readFile(char fileName[], Object *objects) {
 
     objects[index] = currentOBJ;
     index += 1;
-    //realloc(objects, sizeof(Object)*(index + 1));
+    // realloc(objects, sizeof(Object)*(index + 1));
   }
   
   fclose(fh);
@@ -172,33 +163,37 @@ void constructR_d(float R_d[], float R_o[], int pixel[],
 
 
 // FUNCTION for SPHERE intersection
-int intersectSphere(Object *sphere, float R_o[3], float R_d[3]) {
+float intersectSphere(Object *sphere, float R_o[3], float R_d[3]) {
   float Xd = R_d[0];
   float Yd = R_d[1];
   float Zd = R_d[2];
-  float Xo = R_o[0];
-  float Yo = R_o[1];
-  float Zo = R_o[2];
+  int Xo = R_o[0];
+  int Yo = R_o[1];
+  int Zo = R_o[2];
   float Xs = sphere->center[0];
   float Ys = sphere->center[1];
   float Zs = sphere->center[2];
   float A = pow(Xd, 2) + pow(Yd, 2) + pow(Zd, 2);
   float B = 2 * ( (Xd*(Xo - Xs)) + (Yd*(Yo - Ys)) + (Zd*(Zo - Zs)) );
   float C = pow((Xo - Xs), 2) + pow((Yo - Ys), 2) + pow((Zo - Zs), 2) - pow(sphere->radius, 2);
+  /* float A = Xd*Xd + Yd*Yd + Zd*Zd; */
+  /* float B = 2 * ( (Xd*(Xo - Xs)) + (Yd*(Yo - Ys)) + (Zd*(Zo - Zs)) ); */
+  /* float C = (Xo - Xs)*(Xo - Xs) + (Yo - Ys)*(Yo - Ys) + (Zo - Zs)*(Zo - Zs) - sphere->radius*sphere->radius; */
 
+  
   int t0 = 0;
   int t1 = 0;
   int discr = pow(B, 2) - 4*C;
 
   if (discr < 0) {
-    return 0;
+    return -1;
   }
   else {
     t0 = (-B - sqrt(discr)) / 2*A;
     t1 = (-B + sqrt(discr)) / 2*A;
   
       if (t0 < 0 && t1 < 0) {
-	return 0;
+	return -1;
       }
       else if (t0 < 0 || t1 <= t0) {
 	  return t1;
@@ -211,7 +206,7 @@ int intersectSphere(Object *sphere, float R_o[3], float R_d[3]) {
 }
 
 // FUNCTION for PLANE intersection
-int intersectPlane(Object *plane, float R_o[3], float R_d[3]) {
+float intersectPlane(Object *plane, float R_o[3], float R_d[3]) {
   float P_n[3];
   P_n[0] = plane->n[0];
   P_n[1] = plane->n[1];
@@ -277,8 +272,9 @@ int main(int argc, char* argv[]) {
 
   // get camera data
   Object camera = getObject(objects, 1);
-  float R_o[] = {0, 0, 0};
+  float R_o[] = {0, 0, 0}; // origin of camera
 
+  
   // Do intersections for every pixel (x, y)
   for (int x = 0; x < imageWidth; x += 1) {
     for (int y = 0; y < imageHeight; y += 1) {
@@ -290,11 +286,13 @@ int main(int argc, char* argv[]) {
 		   camera.width, camera.height);
 
 
-      int t = 1000;
-      int nearestT = 1000; // any t should automatically be less than this
+      float t = -1;
+      float nearestT = INFINITY;
       Object nearestObj;
       nearestObj.kind = 0;
-      for (int i = 0; i < 3; i += 1) {
+
+      
+      for (int i = 0; i < 128; i += 1) {
 	Object *current = &objects[i];
 	
 	if (current->kind == 3) {
@@ -304,13 +302,7 @@ int main(int argc, char* argv[]) {
 	  t = intersectSphere(current, R_o, R_d);
 	}
 
-	if (t == 0) {
-	  nearestObj.color[0] = 0;
-	  nearestObj.color[1] = 0;
-	  nearestObj.color[2] = 0;
-	}
-	
-	else if (t < nearestT) {
+	if (t < nearestT && t > 0) {
 	  nearestT = t;
 	  nearestObj = objects[i];
 	}
@@ -319,7 +311,12 @@ int main(int argc, char* argv[]) {
 
       for (int k = 0; k < 3; k += 1) {
 	int p = 3 * (imageWidth * y + x) + k;
-	image[p] = nearestObj.color[k] * 255;
+	if (nearestT > 0 && nearestT < INFINITY) { // use INFINITY instead of 1000
+	  image[p] = nearestObj.color[k] * 255;
+	}
+	else {
+	  image[p] = 0;
+	}
       }
       
     }
