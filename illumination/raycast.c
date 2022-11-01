@@ -260,7 +260,7 @@ float shoot(float R_d[], float R_o[], Object objects[], Object *nearestObj) {
 float* illuminate(float R_d[], float* point, Object objects[]){
   float color[3];
   float pix;
-  float something = 3.14;
+  float something;
   
   for(int l)
     {
