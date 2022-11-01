@@ -57,7 +57,7 @@ typedef struct {
       float radial_a0;
       float angular_a0;
       float location[3];
-      float color[3];
+      //float color[3];
       float direction[3];
     };
   };
@@ -238,36 +238,41 @@ float intersectPlane(Object *plane, float R_o[3], float R_d[3]) {
   return t;
 }
 
-float shoot(float R_d[], float R_o[], Object objects[], Object *nearestObj) {
+float shoot(float R_d[], float R_o[], Object *current, Object **nearestObj, Object *objects) {
   float t = -1;
   float nearestT = INFINITY;
+
   
   for (int i = 0; i < 128; i += 1) {
-    Object *current = &objects[i];
-    if (current->kind == 3) {
-      t = intersectPlane(current, R_o, R_d);
+    Object *object = &objects[i];
+    if (object->kind == 3) {
+      t = intersectPlane(object, R_o, R_d);
     }
-    if (current->kind == 2) {
-      t = intersectSphere(current, R_o, R_d);
+    if (object->kind == 2) {
+      t = intersectSphere(object, R_o, R_d);
     }
     if (t < nearestT && t > 0) {
       nearestT = t;
-      *nearestObj = objects[i];
-    }	
-  }  
+      nearestObj = &object;
+    }
+
+    /* printf("t: %f\n", t); */
+    /* printf("nearestT: %f\n", nearestT); */
+  }
+
+  return nearestT;
 }
 
-float* illuminate(float R_d[], float* point, Object objects[]){
-  float color[3];
-  float pix;
-  float something;
+/* float *illuminate(float R_d[], float* point, Object objects[]){ */
+/*   static float color[3]; */
+/*   float pix; */
   
-  for(int l)
-    {
-      pix = shoot()
-    }
-  return color;
-}
+/*   for(int i = 1; i <=1; i++) */
+/*     { */
+/*       pix = 3; */
+/*     } */
+/*   return color; */
+/* } */
 
 Object getObject(Object *objects, enum objType kind) {
   int index = 0;
@@ -324,13 +329,18 @@ int main(int argc, char* argv[]) {
 		   camera.width, camera.height);
 
 
-      float t = -1;
-      float nearestT = INFINITY;
-      Object current;
-      Object *nearestObj;
-      nearestObj->kind = 0;
+      //float t = -1;
+      //float nearestT = INFINITY;
+      Object *current;
+      Object **nearestObj;
+      //nearestObj.kind = 0;
 
-      t = shoot(R_o, R_d, objects, nearestObj);
+      float nearestT = shoot(R_o, R_d, current, nearestObj, objects);
+      /* printf("nearestT: %f\n", nearestT); */
+      /* printf("nearestObj.color: %f, %f, %f\n", */
+      /* 	     nearestObj.color[0], */
+      /* 	     nearestObj.color[1], */
+      /* 	     nearestObj.color[2]); */
       
       /* for (int i = 0; i < 128; i += 1) { */
       /* 	Object *current = &objects[i]; */
@@ -352,7 +362,7 @@ int main(int argc, char* argv[]) {
       for (int k = 0; k < 3; k += 1) {
 	int p = 3 * (imageWidth * y + x) + k;
 	if (nearestT > 0 && nearestT < INFINITY) {
-	  image[p] = nearestObj->color[k] * 255;
+	  image[p] = (*nearestObj)->color[k] * 255;
 	}
 	else {
 	  image[p] = 0;
