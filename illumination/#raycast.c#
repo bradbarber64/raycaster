@@ -279,7 +279,7 @@ Object getObject(Object *objects, enum objType kind) {
   return current;
 }
 
-
+//this is a change
 
 // FUNCTION for writing ppm image
 void writeFile(char *fileOut, int width,
