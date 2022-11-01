@@ -57,7 +57,7 @@ typedef struct {
       float radial_a0;
       float angular_a0;
       float location[3];
-      //float color[3];
+      float color[3];
       float direction[3];
     };
   };
@@ -238,26 +238,36 @@ float intersectPlane(Object *plane, float R_o[3], float R_d[3]) {
   return t;
 }
 
-/* float shoot(float R_d[], float R_o[], Object objects[], Object *nearestObj) { */
-/*   float t = -1; */
-/*   float nearestT = INFINITY; */
+float shoot(float R_d[], float R_o[], Object objects[], Object *nearestObj) {
+  float t = -1;
+  float nearestT = INFINITY;
   
-/*   for (int i = 0; i < 128; i += 1) { */
-/*     Object *current = &objects[i]; */
-/*     if (current->kind == 3) { */
-/*       t = intersectPlane(current, R_o, R_d); */
-/*     } */
-/*     if (current->kind == 2) { */
-/*       t = intersectSphere(current, R_o, R_d); */
-/*     } */
-/*     if (t < nearestT && t > 0) { */
-/*       nearestT = t; */
-/*       *nearestObj = objects[i]; */
-/*     }	 */
-/*   } */
-/*   return nearestT; */
-/* } */
+  for (int i = 0; i < 128; i += 1) {
+    Object *current = &objects[i];
+    if (current->kind == 3) {
+      t = intersectPlane(current, R_o, R_d);
+    }
+    if (current->kind == 2) {
+      t = intersectSphere(current, R_o, R_d);
+    }
+    if (t < nearestT && t > 0) {
+      nearestT = t;
+      *nearestObj = objects[i];
+    }	
+  }  
+}
 
+float* illuminate(float R_d[], float* point, Object objects[]){
+  float color[3];
+  float pix;
+  float something = 3.14;
+  
+  for(int l)
+    {
+      pix = shoot()
+    }
+  return color;
+}
 
 Object getObject(Object *objects, enum objType kind) {
   int index = 0;
@@ -269,8 +279,6 @@ Object getObject(Object *objects, enum objType kind) {
 
   return current;
 }
-
-
 
 // FUNCTION for writing ppm image
 void writeFile(char *fileOut, int width,
@@ -319,32 +327,32 @@ int main(int argc, char* argv[]) {
       float t = -1;
       float nearestT = INFINITY;
       Object current;
-      Object nearestObj;
-      nearestObj.kind = 0;
+      Object *nearestObj;
+      nearestObj->kind = 0;
 
-      //float nearestT = shoot(R_o, R_d, objects, nearestObj);
+      t = shoot(R_o, R_d, objects, nearestObj);
       
-      for (int i = 0; i < 128; i += 1) {
-	Object *current = &objects[i];
+      /* for (int i = 0; i < 128; i += 1) { */
+      /* 	Object *current = &objects[i]; */
 	
-	if (current->kind == 3) {
-	  t = intersectPlane(current, R_o, R_d);
-	}
-	if (current->kind == 2) {
-	  t = intersectSphere(current, R_o, R_d);
-	}
+      /* 	if (current->kind == 3) { */
+      /* 	  t = intersectPlane(current, R_o, R_d); */
+      /* 	} */
+      /* 	if (current->kind == 2) { */
+      /* 	  t = intersectSphere(current, R_o, R_d); */
+      /* 	} */
 
-	if (t < nearestT && t > 0) {
-	  nearestT = t;
-	  nearestObj = objects[i];
-	}
+      /* 	if (t < nearestT && t > 0) { */
+      /* 	  nearestT = t; */
+      /* 	  nearestObj = objects[i]; */
+      /* 	} */
 	
-      }
+      /* } */
 
       for (int k = 0; k < 3; k += 1) {
 	int p = 3 * (imageWidth * y + x) + k;
 	if (nearestT > 0 && nearestT < INFINITY) {
-	  image[p] = nearestObj.color[k] * 255;
+	  image[p] = nearestObj->color[k] * 255;
 	}
 	else {
 	  image[p] = 0;
