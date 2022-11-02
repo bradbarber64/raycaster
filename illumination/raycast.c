@@ -9,8 +9,10 @@
 
 // GLOBAL VARIABLES
 char *fileIn, *fileOut;
-enum objType {none, camera, sphere, plane};
-int numObjects = 0;
+enum objType {none, camera, sphere, plane, light};
+// int numObjects = 0;
+
+
 
 // FUNCTION for usage help
 void help() {
@@ -69,12 +71,43 @@ typedef struct {
 } Object;
 
 
+Object objects[128];
+int objectCount = 0;
+
+
+// FUNCTION FOR DEBUGGING ONLY ****************************
+void printObj(Object *obj) {
+  if (obj == NULL) {
+    printf("No object.\n");
+    return;
+  }
+  printf("Type: %i\n", obj->kind);
+  printf("Color: %f %f %f\n", obj->color[0], obj->color[1],
+	 obj->color[2]);
+  if (obj->kind == 1) {
+    printf("width: %f, height: %f\n", obj->width, obj->height);
+  }
+  if (obj->kind == 2) {
+    printf("center: %f %f %f, radius: %f\n",
+	   obj->center[0], obj->center[1],
+	   obj->center[2], obj->radius);
+  }
+  if (obj->kind == 3) {
+    printf("n: %f %f %f, position: %f %f %f\n", obj->n[0],
+	   obj->n[1], obj->n[2], obj->position[0],
+	   obj->position[1], obj->position[2]);
+  }
+}
+
+
+
+
 /* struct Object *objects = (struct Object *)malloc(sizeof(struct Object)*1); */
 /* realloc(objects, 2*size); */
 
 
 // FUNCTION for reading CSV data
-int readFile(char fileName[], Object *objects) {
+int readFile(char fileName[]) {
   char maxObjects[128];
   FILE *fh;
   
@@ -157,6 +190,7 @@ int readFile(char fileName[], Object *objects) {
 
     objects[index] = currentOBJ;
     index += 1;
+    objectCount += 1;
     // realloc(objects, sizeof(Object)*(index + 1));
   }
   
@@ -238,22 +272,30 @@ float intersectPlane(Object *plane, float R_o[3], float R_d[3]) {
   return t;
 }
 
-float shoot(float R_d[], float R_o[], Object *current, Object **nearestObj, Object *objects) {
+float shoot(float *R_d, float *R_o, Object *current, Object **nearestObj) {
   float t = -1;
   float nearestT = INFINITY;
 
+  *nearestObj = NULL;
   
-  for (int i = 0; i < 128; i += 1) {
+  for (int i = 0; i < objectCount; i += 1) {
     Object *object = &objects[i];
+    //printObj(object);
     if (object->kind == 3) {
       t = intersectPlane(object, R_o, R_d);
     }
-    if (object->kind == 2) {
+    else if (object->kind == 2) {
       t = intersectSphere(object, R_o, R_d);
+    }
+    else if (object->kind == 1) {
+      // skip camera
+    } else {
+      printf("Unknown object: %d\n", object->kind);
+      exit(1);
     }
     if (t < nearestT && t > 0) {
       nearestT = t;
-      nearestObj = &object;
+      *nearestObj = object;
     }
 
     /* printf("t: %f\n", t); */
@@ -263,18 +305,30 @@ float shoot(float R_d[], float R_o[], Object *current, Object **nearestObj, Obje
   return nearestT;
 }
 
-/* float *illuminate(float R_d[], float* point, Object objects[]){ */
-/*   static float color[3]; */
-/*   float pix; */
+float *illuminate(float R_d[], float* point){
+  static float color[3];
+  float pix;
   
-/*   for(int i = 1; i <=1; i++) */
-/*     { */
-/*       pix = 3; */
-/*     } */
-/*   return color; */
-/* } */
+  for(int i = 1; i <=1; i++)
+    {
+      
+      pix = 3;
 
-Object getObject(Object *objects, enum objType kind) {
+      // radial attenuation
+
+      // angular attenuation
+
+      // diffuse component
+
+      // specular component
+
+      
+    }
+  return color;
+}
+
+
+Object getObject(enum objType kind) {
   int index = 0;
   Object current = objects[0];
   while (current.kind != kind) {
@@ -301,7 +355,7 @@ int main(int argc, char* argv[]) {
     help();
   }
 
-  Object *objects = malloc(sizeof(Object)*128);
+  //Object *objects = malloc(sizeof(Object)*128);
   
   int imageWidth = atoi(argv[1]);
   int imageHeight = atoi(argv[2]);
@@ -311,10 +365,10 @@ int main(int argc, char* argv[]) {
 
   uint8_t *image = malloc(imageWidth*imageHeight*3);
 
-  readFile(fileIn, objects);
+  readFile(fileIn);
 
   // get camera data
-  Object camera = getObject(objects, 1);
+  Object camera = getObject(1);
   float R_o[] = {0, 0, 0}; // origin of camera
 
   
@@ -331,11 +385,11 @@ int main(int argc, char* argv[]) {
 
       //float t = -1;
       //float nearestT = INFINITY;
-      Object *current;
-      Object **nearestObj;
+      Object *current = NULL;
+      Object *nearestObj = NULL;
       //nearestObj.kind = 0;
 
-      float nearestT = shoot(R_o, R_d, current, nearestObj, objects);
+      float nearestT = shoot(R_d, R_o, current, &nearestObj);
       /* printf("nearestT: %f\n", nearestT); */
       /* printf("nearestObj.color: %f, %f, %f\n", */
       /* 	     nearestObj.color[0], */
@@ -359,10 +413,12 @@ int main(int argc, char* argv[]) {
 	
       /* } */
 
+      // printObj(nearestObj);
+      
       for (int k = 0; k < 3; k += 1) {
 	int p = 3 * (imageWidth * y + x) + k;
 	if (nearestT > 0 && nearestT < INFINITY) {
-	  image[p] = (*nearestObj)->color[k] * 255;
+	  image[p] = (nearestObj)->color[k] * 255;
 	}
 	else {
 	  image[p] = 0;
@@ -372,9 +428,10 @@ int main(int argc, char* argv[]) {
     }
   }
 
+  printf("Write file\n");
   writeFile(fileOut, imageWidth, imageHeight, image);
 
-  free(objects);
+  //free(objects);
   free(image);
   
   return 0;
