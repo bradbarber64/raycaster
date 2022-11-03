@@ -10,7 +10,6 @@
 // GLOBAL VARIABLES
 char *fileIn, *fileOut;
 enum objType {none, camera, sphere, plane, light};
-// int numObjects = 0;
 
 
 
@@ -32,6 +31,7 @@ typedef struct {
   // 1 = camera
   // 2 = plane
   // 3 = sphere
+  // 4 = light
   enum objType kind;
   
   union {
@@ -54,25 +54,25 @@ typedef struct {
     // light properties
     struct {
       float theta;
-      float radial_a2;
-      float radial_a1;
-      float radial_a0;
-      float angular_a0;
+      float radAttn0;
+      float radAttn1;
+      float radAttn2;
+      float angAttn0;
       float location[3];
-      //float color[3];
+      float color[3];
       float direction[3];
     };
   };
 
-  float color[3];
-  float diffuse_color[3];
-  float specular_color[3];
+  float diffuseColor[3];
+  float specularColor[3];
   
 } Object;
 
 
 Object objects[128];
 int objectCount = 0;
+int lightCount = 0;
 
 
 // FUNCTION FOR DEBUGGING ONLY ****************************
@@ -82,8 +82,8 @@ void printObj(Object *obj) {
     return;
   }
   printf("Type: %i\n", obj->kind);
-  printf("Color: %f %f %f\n", obj->color[0], obj->color[1],
-	 obj->color[2]);
+  /* printf("Color: %f %f %f\n", obj->color[0], obj->color[1], */
+  /* 	 obj->color[2]); */
   if (obj->kind == 1) {
     printf("width: %f, height: %f\n", obj->width, obj->height);
   }
@@ -91,19 +91,19 @@ void printObj(Object *obj) {
     printf("center: %f %f %f, radius: %f\n",
 	   obj->center[0], obj->center[1],
 	   obj->center[2], obj->radius);
+    printf("diffuse: %f %f %f, specular: %f %f %f\n",
+	   obj->diffuseColor[0], obj->diffuseColor[1], obj->diffuseColor[2],
+	   obj->specularColor[0], obj->specularColor[1], obj->specularColor[2] );
   }
   if (obj->kind == 3) {
     printf("n: %f %f %f, position: %f %f %f\n", obj->n[0],
 	   obj->n[1], obj->n[2], obj->position[0],
 	   obj->position[1], obj->position[2]);
   }
+  if (obj->kind == 4) {
+    printf("LIGHT\n");
+  }
 }
-
-
-
-
-/* struct Object *objects = (struct Object *)malloc(sizeof(struct Object)*1); */
-/* realloc(objects, 2*size); */
 
 
 // FUNCTION for reading CSV data
@@ -123,10 +123,14 @@ int readFile(char fileName[]) {
   while (!feof(fh)) {
     fscanf(fh, "%s, ", &str);
     Object currentOBJ;
+    // zero out mem -> sets default variable values to 0
+    memset(&currentOBJ, 0, sizeof(Object));
+    printf("Object kind: %i\n", currentOBJ.kind);
+    
     // CAMERA CHECK
     if (strcmp(str, "camera,") == 0) {
       currentOBJ.kind = 1;
-      for (int i = 0; i < 2; i += 1) {  // this is specific to camera (may change later)
+      for (int i = 0; i < 2; i += 1) {
 	fscanf(fh, "%s ", &str);
 	if (strcmp(str, "width:") == 0) {
 	  fscanf(fh, "%f, ", &currentOBJ.width);
@@ -135,12 +139,14 @@ int readFile(char fileName[]) {
 	  fscanf(fh, "%f, ", &currentOBJ.height);
 	}
       }
+      printf("Read Camera\n");
+      printObj(&currentOBJ);
     }
 
     // SPHERE CHECK
     if (strcmp(str, "sphere,") == 0) {
       currentOBJ.kind = 2;
-      for (int j = 0; j < 3; j += 1) {
+      for (int j = 0; j < 4; j += 1) {
 	fscanf(fh, "%s ", &str);
 	if (strcmp(str, "position:") == 0) {
 	  fscanf(fh, "[%f, %f, %f], ",
@@ -151,20 +157,27 @@ int readFile(char fileName[]) {
 	if (strcmp(str, "radius:") == 0) {
 	  fscanf(fh, "%f, ", &currentOBJ.radius);
 	}
-	if (strcmp(str, "color:") == 0) {
+	if (strcmp(str, "diffuse_color:") == 0) {
 	  fscanf(fh, "[%f, %f, %f], ",
-		 &currentOBJ.color[0],
-		 &currentOBJ.color[1],
-		 &currentOBJ.color[2]);
+		 &currentOBJ.diffuseColor[0],
+		 &currentOBJ.diffuseColor[1],
+		 &currentOBJ.diffuseColor[2]);
 	}
+	if (strcmp(str, "specular_color:") == 0) {
+	  fscanf(fh, "[%f, %f, %f], ",
+		 &currentOBJ.specularColor[0],
+		 &currentOBJ.specularColor[1],
+		 &currentOBJ.specularColor[2]);
+	}	
       }
-
+      printf("Read Sphere\n");
+      printObj(&currentOBJ);
     }
-
+    
     // PLANE CHECK
     if (strcmp(str, "plane,") == 0) {
       currentOBJ.kind = 3;
-      for (int k = 0; k < 3; k += 1) {
+      for (int k = 0; k < 4; k += 1) {
 	fscanf(fh, "%s ", &str);
 	if (strcmp(str, "position:") == 0) {
 	  fscanf(fh, "[%f, %f, %f], ",
@@ -178,16 +191,68 @@ int readFile(char fileName[]) {
 		 &currentOBJ.n[1],
 		 &currentOBJ.n[2]);
 	}
+	if (strcmp(str, "diffuse_color:") == 0) {
+	  fscanf(fh, "[%f, %f, %f], ",
+		 &currentOBJ.diffuseColor[0],
+		 &currentOBJ.diffuseColor[1],
+		 &currentOBJ.diffuseColor[2]);
+	}
+	if (strcmp(str, "specular_color:") == 0) {
+	  fscanf(fh, "[%f, %f, %f], ",
+		 &currentOBJ.specularColor[0],
+		 &currentOBJ.specularColor[1],
+		 &currentOBJ.specularColor[2]);
+	}	
+      }
+      printf("Read Plane\n");
+      printObj(&currentOBJ);
+    }
+
+    // LIGHT CHECK
+    if (strcmp(str, "light,") == 0) {
+      currentOBJ.kind = 4;
+      for (int l = 0; l < 8; l += 1) {
+	fscanf(fh, "%s ", &str);
+	if (strcmp(str, "position:") == 0) {
+	  fscanf(fh, "[%f, %f, %f], ",
+		 &currentOBJ.location[0],
+		 &currentOBJ.location[1],
+		 &currentOBJ.location[2]);
+	}
+	if (strcmp(str, "direction:") == 0) {
+	  fscanf(fh, "[%f, %f, %f], ",
+		 &currentOBJ.direction[0],
+		 &currentOBJ.direction[1],
+		 &currentOBJ.direction[2]);
+	}
 	if (strcmp(str, "color:") == 0) {
 	  fscanf(fh, "[%f, %f, %f], ",
 		 &currentOBJ.color[0],
 		 &currentOBJ.color[1],
 		 &currentOBJ.color[2]);
 	}
+	if (strcmp(str, "radial-a0:") == 0) {
+	  fscanf(fh, "%f, ", &currentOBJ.radAttn0);
+	}
+	if (strcmp(str, "radial-a1:") == 0) {
+	  fscanf(fh, "%f, ", &currentOBJ.radAttn1);
+	}
+	if (strcmp(str, "radial-a2:") == 0) {
+	  fscanf(fh, "%f, ", &currentOBJ.radAttn2);
+	}
+	if (strcmp(str, "theta:") == 0) {
+	  fscanf(fh, "%f, ", &currentOBJ.theta);
+	}
+	if (strcmp(str, "angular-a0") == 0) {
+	  fscanf(fh, "%f, ", &currentOBJ.angAttn0);
+	}
       }
-
+      lightCount += 1;
+      printf("Read Light\n");
+      printObj(&currentOBJ);
     }
 
+    
     objects[index] = currentOBJ;
     index += 1;
     objectCount += 1;
@@ -280,26 +345,27 @@ float shoot(float *R_d, float *R_o, Object *current, Object **nearestObj) {
   
   for (int i = 0; i < objectCount; i += 1) {
     Object *object = &objects[i];
+    if (object == current) {
+      // skip current object
+    }
     //printObj(object);
-    if (object->kind == 3) {
+    else if (object->kind == 3) {
       t = intersectPlane(object, R_o, R_d);
     }
     else if (object->kind == 2) {
       t = intersectSphere(object, R_o, R_d);
     }
-    else if (object->kind == 1) {
-      // skip camera
+    else if (object->kind == 1 || object->kind == 4) {
+      // skip camera and lights
     } else {
       printf("Unknown object: %d\n", object->kind);
+      printObj(object);
       exit(1);
     }
     if (t < nearestT && t > 0) {
       nearestT = t;
       *nearestObj = object;
     }
-
-    /* printf("t: %f\n", t); */
-    /* printf("nearestT: %f\n", nearestT); */
   }
 
   return nearestT;
@@ -309,13 +375,14 @@ float *illuminate(float R_d[], float* point){
   static float color[3];
   float pix;
   
-  for(int i = 1; i <=1; i++)
+  for(int i = 1; i < lightCount; i += 1)
     {
-      
-      pix = 3;
+      if (objects[i].kind == 4) {
+	Object light = objects[i];
+      }
 
       // radial attenuation
-
+      
       // angular attenuation
 
       // diffuse component
@@ -328,9 +395,8 @@ float *illuminate(float R_d[], float* point){
 }
 
 
-Object getObject(enum objType kind) {
+Object getObject(Object current, enum objType kind) {
   int index = 0;
-  Object current = objects[0];
   while (current.kind != kind) {
     index += 1;
     current = objects[index];
@@ -368,7 +434,7 @@ int main(int argc, char* argv[]) {
   readFile(fileIn);
 
   // get camera data
-  Object camera = getObject(1);
+  Object camera = getObject(objects[0], 1);
   float R_o[] = {0, 0, 0}; // origin of camera
 
   
@@ -383,37 +449,20 @@ int main(int argc, char* argv[]) {
 		   camera.width, camera.height);
 
 
-      //float t = -1;
-      //float nearestT = INFINITY;
       Object *current = NULL;
       Object *nearestObj = NULL;
-      //nearestObj.kind = 0;
 
       float nearestT = shoot(R_d, R_o, current, &nearestObj);
-      /* printf("nearestT: %f\n", nearestT); */
-      /* printf("nearestObj.color: %f, %f, %f\n", */
-      /* 	     nearestObj.color[0], */
-      /* 	     nearestObj.color[1], */
-      /* 	     nearestObj.color[2]); */
-      
-      /* for (int i = 0; i < 128; i += 1) { */
-      /* 	Object *current = &objects[i]; */
-	
-      /* 	if (current->kind == 3) { */
-      /* 	  t = intersectPlane(current, R_o, R_d); */
-      /* 	} */
-      /* 	if (current->kind == 2) { */
-      /* 	  t = intersectSphere(current, R_o, R_d); */
-      /* 	} */
 
-      /* 	if (t < nearestT && t > 0) { */
-      /* 	  nearestT = t; */
-      /* 	  nearestObj = objects[i]; */
-      /* 	} */
-	
-      /* } */
+      float point[3];
+      setArray(point,
+	       R_o[0] + (R_d[0] * nearestT),
+	       R_o[1] + (R_d[1] * nearestT),
+	       R_o[2] + (R_d[2] * nearestT)
+	       );
 
-      // printObj(nearestObj);
+      float *color;
+      color = illuminate(R_d, point);
       
       for (int k = 0; k < 3; k += 1) {
 	int p = 3 * (imageWidth * y + x) + k;
@@ -428,7 +477,6 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  printf("Write file\n");
   writeFile(fileOut, imageWidth, imageHeight, image);
 
   //free(objects);
