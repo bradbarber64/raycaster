@@ -8,7 +8,7 @@
 
 
 // GLOBAL VARIABLES
-char *fileIn, *fileOut;
+char *fileIn, *fileOut;  
 enum objType {none, camera, sphere, plane, light};
 
 
@@ -23,6 +23,17 @@ void setArray(float arr[3], float a, float b, float c) {
   arr[0] = a;
   arr[1] = b;
   arr[2] = c;
+}
+
+void clamp(float arr[3]) {
+  for (int i = 0; i < 3; i += 1) {
+    if (arr[i] < 0) {
+      arr[i] = 0;
+    }
+    if (arr[i] > 1) {
+      arr[i] = 1;
+    }
+  }
 }
 
 // STRUCT for storing objects
@@ -40,7 +51,6 @@ typedef struct {
     struct {
       float center[3];
       float radius;
-      float normal[3];
     };
     
     // plane properties
@@ -117,16 +127,16 @@ void printObj(Object *obj) {
 
 // FUNCTION for reading CSV data
 int readFile(char *fileName) {
-  char maxObjects[128];
+  char maxObjects[128]; // doesn't do anything, but breaks if we remove it...
+
   FILE *fh;
-  
   fh = fopen(fileName, "r");
 
   if(!fh) {
       printf("\nCannot locate file");
   }
 
-  char str[15];
+  char str[20];
   int index = 0;
   
   while (!feof(fh)) {
@@ -134,7 +144,8 @@ int readFile(char *fileName) {
     Object currentOBJ;
     // zero out mem -> sets default variable values to 0
     memset(&currentOBJ, 0, sizeof(Object));
-    printf("Object kind: %i\n", currentOBJ.kind);
+    currentOBJ.angAttn0 = 0;
+    //printf("Object kind: %i\n", currentOBJ.kind);
     
     // CAMERA CHECK
     if (strcmp(str, "camera,") == 0) {
@@ -209,10 +220,9 @@ int readFile(char *fileName) {
 		 &currentOBJ.specularColor[0],
 		 &currentOBJ.specularColor[1],
 		 &currentOBJ.specularColor[2]);
-	}	
+	} 
       }
       printf("Read Plane\n");
-      printObj(&currentOBJ);
     }
 
     // LIGHT CHECK
@@ -264,6 +274,7 @@ int readFile(char *fileName) {
     currentOBJ.index = index;
     index += 1;
     objectCount += 1;
+    printf("objectCount: %i\n", objectCount);
   }
   
   fclose(fh);
@@ -358,16 +369,17 @@ float shoot(float *R_d, float *R_o, Object *current, Object **nearestObj) {
   float t = -1;
   float nearestT = INFINITY;
 
+  
   if (nearestObj == 0) {
     return -1;
   }
   
   //*nearestObj = NULL;
-  printf("objectCount: %i\n", objectCount);
+  //printf("objectCount: %i\n", objectCount);
   for (int i = 0; i < objectCount; i += 1) {
     Object *object = &objects[i];
-    printf("object in shoot at index %i:\n", i);
-    printObj(object);
+    //printf("object in shoot at index %i:\n", i);
+    //printObj(object);
     if (object == current) {
       // skip current object
     }
@@ -396,62 +408,43 @@ float shoot(float *R_d, float *R_o, Object *current, Object **nearestObj) {
 
 float *illuminate(float *R_d, float *point, Object *currentOBJ){
   static float color[3];
-  float pix;
   Object prevLight;
   prevLight.index = 0;
-  printf("\n\ncurrentOBJ:\n");
-  printObj(currentOBJ);
-  printf("lightCount: %i\n", lightCount);
+  float redComp = 0;
+  float greenComp = 0;
+  float blueComp = 0;
   
   for(int i = 0; i < lightCount; i += 1)
     {
       // Get light and properties
-      printf("prevLight.index: %i\n", prevLight.index);
       Object light = getObject(prevLight.index, 4);
-      printObj(&light);
-      
       float lightOrigin[3];
       setArray(lightOrigin, light.location[0],
 	       light.location[1], light.location[2]);
 
-      printf("CHK: got light & properties\n");
-      printObj(&light);
+      //printf("CHK: got light & properties\n");
 
       // calculate necessary vectors
       float L[3];
       v3_from_points(L, point, lightOrigin);
       float t = shoot(L, point, currentOBJ, 0);
 
-      // set sphere normal
-      if (currentOBJ->kind == 2) {
-	float norm[3];
-	v3_from_points(norm, currentOBJ->center, point);
-	setArray(currentOBJ->normal, norm[0], norm[1], norm[2]);
-      }
-
-
-      printf("CHK: got necessary vectors\n");
+      //printf("CHK: got necessary vectors\n");
 
       float Lmag = v3_length(L);
       if (t > 0 && t < Lmag) {
-	continue;
+	break;
       }
 
-      printf("CHK: got and verified Lmag\n");
+      //printf("CHK: got and verified Lmag\n");
 
-      // create light vector L
-      // calculate normal if needed
-
-      printf("CurrentOBJ radAttn values: %f %f %f\n", currentOBJ->radAttn0,
-	     currentOBJ->radAttn1, currentOBJ->radAttn2);
-      
       // radial attenuation
-      float radAttn = (1 / (currentOBJ->radAttn0
-			    + (currentOBJ->radAttn1 * Lmag)
-			    + (currentOBJ->radAttn2 * pow(Lmag, 2)) )
+      float radAttn = (1 / (light.radAttn0
+			    + (light.radAttn1 * Lmag)
+			    + (light.radAttn2 * pow(Lmag, 2)) )
 		       );
 
-      printf("radAttn: %f\n", radAttn);
+      //printf("radAttn: %f\n", radAttn);
 
       // normalize light vector
       float Lnorm[3];
@@ -460,19 +453,94 @@ float *illuminate(float *R_d, float *point, Object *currentOBJ){
       // angular attenuation
       float Vo[3];
       float Vl[3];
-      setArray(Vo, currentOBJ->direction[0],
-	       currentOBJ->direction[1], currentOBJ->direction[2]);
-      setArray(Vl, Lnorm[0], Lnorm[1], Lnorm[2]);
-      float angAttn = pow(v3_dot_product(Vo, Vl), currentOBJ->angAttn0);
+      float VoDotVl;
+      setArray(Vl, light.direction[0],
+	       light.direction[1], light.direction[2]);
+      setArray(Vo, -Lnorm[0], -Lnorm[1], -Lnorm[2]);  ////// ERRORS somewhere near here
+      VoDotVl = v3_dot_product(Vo, Vl);
+      float angAttn;
 
-      printf("angAttn: %f\n", angAttn);
       
-      // diffuse component
+      if ((light.direction[0] == 0 && light.direction[1] == 0 && light.direction[2] == 0) && light.theta == 0) {
+	angAttn = 1;
+      }
+      else if (VoDotVl < cos(light.theta)) {
+	angAttn = 0;
+      }
+      else {
+	angAttn = pow(VoDotVl, light.angAttn0);
+      }
+      
+      //printf("angAttn: %f\n", angAttn);
+      
+      // diffuse and specular components
 
-      // specular component
+      float N[3];
+      if (currentOBJ->kind == 2) {
+	float norm[3];
+	v3_from_points(norm, currentOBJ->center, point);
+	v3_normalize(norm, norm);
+      	setArray(N, norm[0], norm[1], norm[2]);
+      }
+      else if (currentOBJ->kind == 3) {
+	v3_normalize(currentOBJ->n, currentOBJ->n);
+	setArray(N, currentOBJ->n[0], currentOBJ->n[1], currentOBJ->n[2]);
+      }
 
+      // get camera object:
+      Object cam = getObject(0, 1);
+      
+      float Idiff[3];
+      float Ispec[3];
+      float R[3];
+      float V[3];
+      float camPos[3];
+
+      setArray(camPos, 0, 0, 0);
+      v3_reflect(R, Lnorm, N);
+      v3_normalize(R, R);
+      v3_from_points(V, point, camPos);
+      v3_normalize(V, V);
+      
+      float NdotL = v3_dot_product(N, Lnorm);
+      float VdotR = v3_dot_product(V, R);
+      if (NdotL < 0) {
+	setArray(Idiff, 0, 0, 0);
+	if (VdotR < 0) {
+	  setArray(Ispec, 0, 0, 0);
+	}
+      }
+      else {
+	setArray(Idiff,
+		 currentOBJ->diffuseColor[0] * light.color[0] * NdotL,
+		 currentOBJ->diffuseColor[1] * light.color[1] * NdotL,
+		 currentOBJ->diffuseColor[2] * light.color[2] * NdotL );
+
+	setArray(Ispec,
+		 currentOBJ->specularColor[0] * light.color[0] * pow(VdotR, 20),
+		 currentOBJ->specularColor[1] * light.color[1] * pow(VdotR, 20),
+		 currentOBJ->specularColor[2] * light.color[2] * pow(VdotR, 20) );
+	
+      }
+
+      
+
+
+      redComp += (angAttn * radAttn * (Ispec[0] + Idiff[0]));
+      greenComp += (angAttn * radAttn * (Ispec[1] + Idiff[1]));
+      blueComp += (angAttn * radAttn * (Ispec[2] + Idiff[2]));
+      
+
+      //printf("currentOBJ: ");
+      //printObj(currentOBJ);
+      //printf("Color: %f %f %f\n", redComp, greenComp, blueComp);
+      
       prevLight = light;
     }
+
+  clamp(color);
+  
+  setArray(color, redComp, greenComp, blueComp);
   return color;
 }
 
@@ -518,15 +586,20 @@ int main(int argc, char* argv[]) {
       constructR_d(R_d, R_o, pixel,
 		   imageWidth, imageHeight,
 		   camera.width, camera.height);
+      v3_normalize(R_d, R_d);
 
 
       //Object *current;
       Object *nearestObj;
 
       float nearestT = shoot(R_d, R_o, 0, &nearestObj);
-      printObj(nearestObj);
+      //printf("nearestObj: \n");
+      //printObj(nearestObj);
 
-      printf("Successfully got nearestT\n");
+      //printf("Successfully got nearestT\n");
+
+      //printf("nearestT: %f\n", nearestT);
+
       
       float point[3];
       setArray(point,
@@ -534,16 +607,16 @@ int main(int argc, char* argv[]) {
 	       R_o[1] + (R_d[1] * nearestT),
 	       R_o[2] + (R_d[2] * nearestT)
 	       );
-
+      
       float *color;
       color = illuminate(R_d, point, nearestObj);
 
-      printf("Successfully illuminated point\n");
+      //printf("Successfully illuminated point\n");
       
       for (int k = 0; k < 3; k += 1) {
 	int p = 3 * (imageWidth * y + x) + k;
 	if (nearestT > 0 && nearestT < INFINITY) {
-	  image[p] = (nearestObj)->color[k] * 255;
+	  image[p] = color[k] * 255;
 	}
 	else {
 	  image[p] = 0;
@@ -552,7 +625,7 @@ int main(int argc, char* argv[]) {
       
     }
   }
-  printf("Successfully updated pixmap data \n");
+  //printf("Successfully updated pixmap data \n");
 
   writeFile(fileOut, imageWidth, imageHeight, image);
 
