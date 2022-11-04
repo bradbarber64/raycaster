@@ -6,10 +6,10 @@
 #include <math.h>
 #include "v3math.c"
 
-
 // GLOBAL VARIABLES
 char *fileIn, *fileOut;
 enum objType {none, camera, sphere, plane, light};
+// int numObjects = 0;
 
 
 
@@ -18,29 +18,24 @@ void help() {
   printf("Usage: raycaster IMAGE_WIDTH IMAGE_HEIGHT FILE_IN FILE_OUT\n");
   exit(0);
 }
-
 void setArray(float arr[3], float a, float b, float c) {
   arr[0] = a;
   arr[1] = b;
   arr[2] = c;
 }
-
 // STRUCT for storing objects
 typedef struct {
   // 0 = Not an object ( default )
   // 1 = camera
   // 2 = plane
   // 3 = sphere
-  // 4 = light
   enum objType kind;
-  int index;
   
   union {
     // sphere properties
     struct {
       float center[3];
       float radius;
-      float normal[3];
     };
     
     // plane properties
@@ -56,25 +51,24 @@ typedef struct {
     // light properties
     struct {
       float theta;
-      float angAttn0;
-      float radAttn0;
-      float radAttn1;
-      float radAttn2;
+      float radial_a2;
+      float radial_a1;
+      float radial_a0;
+      float angular_a0;
       float location[3];
-      float color[3];
+      //float color[3];
       float direction[3];
     };
   };
-
-  float diffuseColor[3];
-  float specularColor[3];
+  float color[3];
+  float diffuse_color[3];
+  float specular_color[3];
   
 } Object;
 
 
 Object objects[128];
 int objectCount = 0;
-int lightCount = 0;
 
 
 // FUNCTION FOR DEBUGGING ONLY ****************************
@@ -84,8 +78,8 @@ void printObj(Object *obj) {
     return;
   }
   printf("Type: %i\n", obj->kind);
-  /* printf("Color: %f %f %f\n", obj->color[0], obj->color[1], */
-  /* 	 obj->color[2]); */
+  printf("Color: %f %f %f\n", obj->color[0], obj->color[1],
+	 obj->color[2]);
   if (obj->kind == 1) {
     printf("width: %f, height: %f\n", obj->width, obj->height);
   }
@@ -93,53 +87,40 @@ void printObj(Object *obj) {
     printf("center: %f %f %f, radius: %f\n",
 	   obj->center[0], obj->center[1],
 	   obj->center[2], obj->radius);
-    printf("diffuse: %f %f %f, specular: %f %f %f\n",
-	   obj->diffuseColor[0], obj->diffuseColor[1], obj->diffuseColor[2],
-	   obj->specularColor[0], obj->specularColor[1], obj->specularColor[2] );
   }
   if (obj->kind == 3) {
     printf("n: %f %f %f, position: %f %f %f\n", obj->n[0],
 	   obj->n[1], obj->n[2], obj->position[0],
 	   obj->position[1], obj->position[2]);
-    printf("diffuse: %f %f %f, specular: %f %f %f\n",
-	   obj->diffuseColor[0], obj->diffuseColor[1], obj->diffuseColor[2],
-	   obj->specularColor[0], obj->specularColor[1], obj->specularColor[2] );
-  }
-  if (obj->kind == 4) {
-    printf("theta: %f, radAttn: %f, %f, %f\n", obj->theta, obj->radAttn0, obj->radAttn1, obj->radAttn2);
-    printf("angAttn: %f, location: %f, %f, %f\n", obj->angAttn0,
-	   obj->location[0], obj->location[1], obj->location[2]);
-    printf("color: %f, %f, %f, direction: %f, %f, %f\n", obj->color[0], obj->color[1], obj->color[2],
-	   obj->direction[0], obj->direction[1], obj->direction[2]);
   }
 }
 
 
+
+
+/* struct Object *objects = (struct Object *)malloc(sizeof(struct Object)*1); */
+/* realloc(objects, 2*size); */
+
+
 // FUNCTION for reading CSV data
-int readFile(char *fileName) {
+int readFile(char fileName[]) {
   char maxObjects[128];
   FILE *fh;
-  
-  fh = fopen(fileName, "r");
 
+  fh = fopen(fileName, "r");
   if(!fh) {
       printf("\nCannot locate file");
   }
-
   char str[15];
   int index = 0;
   
   while (!feof(fh)) {
     fscanf(fh, "%s, ", &str);
     Object currentOBJ;
-    // zero out mem -> sets default variable values to 0
-    memset(&currentOBJ, 0, sizeof(Object));
-    printf("Object kind: %i\n", currentOBJ.kind);
-    
     // CAMERA CHECK
     if (strcmp(str, "camera,") == 0) {
       currentOBJ.kind = 1;
-      for (int i = 0; i < 2; i += 1) {
+      for (int i = 0; i < 2; i += 1) {  // this is specific to camera (may change later)
 	fscanf(fh, "%s ", &str);
 	if (strcmp(str, "width:") == 0) {
 	  fscanf(fh, "%f, ", &currentOBJ.width);
@@ -148,13 +129,11 @@ int readFile(char *fileName) {
 	  fscanf(fh, "%f, ", &currentOBJ.height);
 	}
       }
-      printf("Read Camera\n");
     }
-
     // SPHERE CHECK
     if (strcmp(str, "sphere,") == 0) {
       currentOBJ.kind = 2;
-      for (int j = 0; j < 4; j += 1) {
+      for (int j = 0; j < 3; j += 1) {
 	fscanf(fh, "%s ", &str);
 	if (strcmp(str, "position:") == 0) {
 	  fscanf(fh, "[%f, %f, %f], ",
@@ -165,26 +144,18 @@ int readFile(char *fileName) {
 	if (strcmp(str, "radius:") == 0) {
 	  fscanf(fh, "%f, ", &currentOBJ.radius);
 	}
-	if (strcmp(str, "diffuse_color:") == 0) {
+	if (strcmp(str, "color:") == 0) {
 	  fscanf(fh, "[%f, %f, %f], ",
-		 &currentOBJ.diffuseColor[0],
-		 &currentOBJ.diffuseColor[1],
-		 &currentOBJ.diffuseColor[2]);
+		 &currentOBJ.color[0],
+		 &currentOBJ.color[1],
+		 &currentOBJ.color[2]);
 	}
-	if (strcmp(str, "specular_color:") == 0) {
-	  fscanf(fh, "[%f, %f, %f], ",
-		 &currentOBJ.specularColor[0],
-		 &currentOBJ.specularColor[1],
-		 &currentOBJ.specularColor[2]);
-	}	
       }
-      printf("Read Sphere\n");
     }
-    
     // PLANE CHECK
     if (strcmp(str, "plane,") == 0) {
       currentOBJ.kind = 3;
-      for (int k = 0; k < 4; k += 1) {
+      for (int k = 0; k < 3; k += 1) {
 	fscanf(fh, "%s ", &str);
 	if (strcmp(str, "position:") == 0) {
 	  fscanf(fh, "[%f, %f, %f], ",
@@ -198,87 +169,23 @@ int readFile(char *fileName) {
 		 &currentOBJ.n[1],
 		 &currentOBJ.n[2]);
 	}
-	if (strcmp(str, "diffuse_color:") == 0) {
-	  fscanf(fh, "[%f, %f, %f], ",
-		 &currentOBJ.diffuseColor[0],
-		 &currentOBJ.diffuseColor[1],
-		 &currentOBJ.diffuseColor[2]);
-	}
-	if (strcmp(str, "specular_color:") == 0) {
-	  fscanf(fh, "[%f, %f, %f], ",
-		 &currentOBJ.specularColor[0],
-		 &currentOBJ.specularColor[1],
-		 &currentOBJ.specularColor[2]);
-	}	
-      }
-      printf("Read Plane\n");
-      printObj(&currentOBJ);
-    }
-
-    // LIGHT CHECK
-    if (strcmp(str, "light,") == 0) {
-      currentOBJ.kind = 4;
-      for (int l = 0; l < 8; l += 1) {
-	fscanf(fh, "%s ", &str);
-	if (strcmp(str, "position:") == 0) {
-	  fscanf(fh, "[%f, %f, %f], ",
-		 &currentOBJ.location[0],
-		 &currentOBJ.location[1],
-		 &currentOBJ.location[2]);
-	}
-	if (strcmp(str, "direction:") == 0) {
-	  fscanf(fh, "[%f, %f, %f], ",
-		 &currentOBJ.direction[0],
-		 &currentOBJ.direction[1],
-		 &currentOBJ.direction[2]);
-	}
 	if (strcmp(str, "color:") == 0) {
 	  fscanf(fh, "[%f, %f, %f], ",
 		 &currentOBJ.color[0],
 		 &currentOBJ.color[1],
 		 &currentOBJ.color[2]);
 	}
-	if (strcmp(str, "angular-a0:") == 0) {
-	  fscanf(fh, "%f, ", &currentOBJ.angAttn0);
-	}
-	if (strcmp(str, "radial-a0:") == 0) {
-	  fscanf(fh, "%f, ", &currentOBJ.radAttn0);
-	}
-	if (strcmp(str, "radial-a1:") == 0) {
-	  fscanf(fh, "%f, ", &currentOBJ.radAttn1);
-	}
-	if (strcmp(str, "radial-a2:") == 0) {
-	  fscanf(fh, "%f, ", &currentOBJ.radAttn2);
-	}
-	if (strcmp(str, "theta:") == 0) {
-	  fscanf(fh, "%f, ", &currentOBJ.theta);
-	}
       }
-      lightCount += 1;
-      printf("Read Light\n");
     }
 
-    printObj(&currentOBJ);
-    
     objects[index] = currentOBJ;
-    currentOBJ.index = index;
     index += 1;
     objectCount += 1;
+    // realloc(objects, sizeof(Object)*(index + 1));
   }
-  
+
   fclose(fh);
 }
-
-
-Object getObject(int startIdx, enum objType kind) {
-  Object current = objects[startIdx];
-  while (current.kind != kind) {
-    startIdx += 1;
-    current = objects[startIdx];
-  }
-  return current;
-}
-
 void constructR_d(float R_d[], float R_o[], int pixel[],
 		   int imgW, int imgH,
 		   float camW, float camH ) {
@@ -291,7 +198,6 @@ void constructR_d(float R_d[], float R_o[], int pixel[],
   v3_from_points(R_d, R_o, pixel0);
   v3_normalize(R_d, R_d);
 }
-
 // FUNCTION for SPHERE intersection
 float intersectSphere(Object *sphere, float R_o[3], float R_d[3]) {
   float Xd = R_d[0];
@@ -310,7 +216,6 @@ float intersectSphere(Object *sphere, float R_o[3], float R_d[3]) {
   float t0 = 0;
   float t1 = 0;
   float discr = pow(B, 2) - 4*C;
-
   if (discr < 0) {
     return -1;
   }
@@ -328,9 +233,7 @@ float intersectSphere(Object *sphere, float R_o[3], float R_d[3]) {
 	return t0;
       }
   }
-
 }
-
 // FUNCTION for PLANE intersection
 float intersectPlane(Object *plane, float R_o[3], float R_d[3]) {
   float P_n[3];
@@ -340,13 +243,11 @@ float intersectPlane(Object *plane, float R_o[3], float R_d[3]) {
   float P_o[3];
   setArray(P_o, plane->position[0],
 	   plane->position[1], plane->position[2]);
-
   float D = -(v3_dot_product(P_n, P_o));
   float num = - ((v3_dot_product(P_n, R_o)) + D);
   float denom = v3_dot_product(P_n, R_d);
   
   float t = num / denom;
-
   if (t < 0) {
     return 0;
   }
@@ -358,124 +259,66 @@ float shoot(float *R_d, float *R_o, Object *current, Object **nearestObj) {
   float t = -1;
   float nearestT = INFINITY;
 
-  if (nearestObj == 0) {
-    return -1;
-  }
-  
-  //*nearestObj = NULL;
-  printf("objectCount: %i\n", objectCount);
+  *nearestObj = NULL;
+
   for (int i = 0; i < objectCount; i += 1) {
     Object *object = &objects[i];
-    printf("object in shoot at index %i:\n", i);
-    printObj(object);
-    if (object == current) {
-      // skip current object
-    }
     //printObj(object);
-    else if (object->kind == 3) {
+    if (object->kind == 3) {
       t = intersectPlane(object, R_o, R_d);
     }
     else if (object->kind == 2) {
       t = intersectSphere(object, R_o, R_d);
     }
-    else if (object->kind == 1 || object->kind == 4) {
-      // skip camera and lights
+    else if (object->kind == 1) {
+      // skip camera
     } else {
       printf("Unknown object: %d\n", object->kind);
-      printObj(object);
       exit(1);
     }
     if (t < nearestT && t > 0) {
       nearestT = t;
       *nearestObj = object;
     }
-  }
 
+    /* printf("t: %f\n", t); */
+    /* printf("nearestT: %f\n", nearestT); */
+  }
   return nearestT;
 }
 
-float *illuminate(float *R_d, float *point, Object *currentOBJ){
+float *illuminate(float R_d[], float* point){
   static float color[3];
   float pix;
-  Object prevLight;
-  prevLight.index = 0;
-  printf("\n\ncurrentOBJ:\n");
-  printObj(currentOBJ);
-  printf("lightCount: %i\n", lightCount);
-  
-  for(int i = 0; i < lightCount; i += 1)
+
+  for(int i = 1; i <=1; i++)
     {
-      // Get light and properties
-      printf("prevLight.index: %i\n", prevLight.index);
-      Object light = getObject(prevLight.index, 4);
-      printObj(&light);
-      
-      float lightOrigin[3];
-      setArray(lightOrigin, light.location[0],
-	       light.location[1], light.location[2]);
 
-      printf("CHK: got light & properties\n");
-      printObj(&light);
+      pix = 3;
 
-      // calculate necessary vectors
-      float L[3];
-      v3_from_points(L, point, lightOrigin);
-      float t = shoot(L, point, currentOBJ, 0);
-
-      // set sphere normal
-      if (currentOBJ->kind == 2) {
-	float norm[3];
-	v3_from_points(norm, currentOBJ->center, point);
-	setArray(currentOBJ->normal, norm[0], norm[1], norm[2]);
-      }
-
-
-      printf("CHK: got necessary vectors\n");
-
-      float Lmag = v3_length(L);
-      if (t > 0 && t < Lmag) {
-	continue;
-      }
-
-      printf("CHK: got and verified Lmag\n");
-
-      // create light vector L
-      // calculate normal if needed
-
-      printf("CurrentOBJ radAttn values: %f %f %f\n", currentOBJ->radAttn0,
-	     currentOBJ->radAttn1, currentOBJ->radAttn2);
-      
       // radial attenuation
-      float radAttn = (1 / (currentOBJ->radAttn0
-			    + (currentOBJ->radAttn1 * Lmag)
-			    + (currentOBJ->radAttn2 * pow(Lmag, 2)) )
-		       );
 
-      printf("radAttn: %f\n", radAttn);
-
-      // normalize light vector
-      float Lnorm[3];
-      v3_normalize(Lnorm, L);
-      
       // angular attenuation
-      float Vo[3];
-      float Vl[3];
-      setArray(Vo, currentOBJ->direction[0],
-	       currentOBJ->direction[1], currentOBJ->direction[2]);
-      setArray(Vl, Lnorm[0], Lnorm[1], Lnorm[2]);
-      float angAttn = pow(v3_dot_product(Vo, Vl), currentOBJ->angAttn0);
 
-      printf("angAttn: %f\n", angAttn);
-      
       // diffuse component
 
       // specular component
 
-      prevLight = light;
+
     }
   return color;
 }
 
+
+Object getObject(enum objType kind) {
+  int index = 0;
+  Object current = objects[0];
+  while (current.kind != kind) {
+    index += 1;
+    current = objects[index];
+  }
+  return current;
+}
 // FUNCTION for writing ppm image
 void writeFile(char *fileOut, int width,
 	       int height, uint8_t *image) {
@@ -484,8 +327,6 @@ void writeFile(char *fileOut, int width,
   fwrite(image, sizeof(uint8_t), width*height*3, fh);
   fclose(fh);
 }
-
-
 // MAIN FUNCTION
 int main(int argc, char* argv[]) {
   if (argc != 5) {
@@ -493,10 +334,9 @@ int main(int argc, char* argv[]) {
   }
 
   //Object *objects = malloc(sizeof(Object)*128);
-  
+
   int imageWidth = atoi(argv[1]);
   int imageHeight = atoi(argv[2]);
-
   fileIn = argv[3];
   fileOut = argv[4];
 
@@ -505,10 +345,10 @@ int main(int argc, char* argv[]) {
   readFile(fileIn);
 
   // get camera data
-  Object camera = getObject(0, 1);
+  Object camera = getObject(1);
   float R_o[] = {0, 0, 0}; // origin of camera
 
-  
+
   // Do intersections for every pixel (x, y)
   for (int x = 0; x < imageWidth; x += 1) {
     for (int y = 0; y < imageHeight; y += 1) {
@@ -519,27 +359,37 @@ int main(int argc, char* argv[]) {
 		   imageWidth, imageHeight,
 		   camera.width, camera.height);
 
+      //float t = -1;
+      //float nearestT = INFINITY;
+      Object *current = NULL;
+      Object *nearestObj = NULL;
+      //nearestObj.kind = 0;
 
-      //Object *current;
-      Object *nearestObj;
-
-      float nearestT = shoot(R_d, R_o, 0, &nearestObj);
-      printObj(nearestObj);
-
-      printf("Successfully got nearestT\n");
+      float nearestT = shoot(R_d, R_o, current, &nearestObj);
+      /* printf("nearestT: %f\n", nearestT); */
+      /* printf("nearestObj.color: %f, %f, %f\n", */
+      /* 	     nearestObj.color[0], */
+      /* 	     nearestObj.color[1], */
+      /* 	     nearestObj.color[2]); */
       
-      float point[3];
-      setArray(point,
-	       R_o[0] + (R_d[0] * nearestT),
-	       R_o[1] + (R_d[1] * nearestT),
-	       R_o[2] + (R_d[2] * nearestT)
-	       );
+      /* for (int i = 0; i < 128; i += 1) { */
+      /* 	Object *current = &objects[i]; */
+	
+      /* 	if (current->kind == 3) { */
+      /* 	  t = intersectPlane(current, R_o, R_d); */
+      /* 	} */
+      /* 	if (current->kind == 2) { */
+      /* 	  t = intersectSphere(current, R_o, R_d); */
+      /* 	} */
+      /* 	if (t < nearestT && t > 0) { */
+      /* 	  nearestT = t; */
+      /* 	  nearestObj = objects[i]; */
+      /* 	} */
 
-      float *color;
-      color = illuminate(R_d, point, nearestObj);
+      /* } */
 
-      printf("Successfully illuminated point\n");
-      
+      // printObj(nearestObj);
+
       for (int k = 0; k < 3; k += 1) {
 	int p = 3 * (imageWidth * y + x) + k;
 	if (nearestT > 0 && nearestT < INFINITY) {
@@ -552,13 +402,12 @@ int main(int argc, char* argv[]) {
       
     }
   }
-  printf("Successfully updated pixmap data \n");
 
+  printf("Write file\n");
   writeFile(fileOut, imageWidth, imageHeight, image);
 
   //free(objects);
   free(image);
 
-  printf("Successfully Ran Program\n");
   return 0;
 }
