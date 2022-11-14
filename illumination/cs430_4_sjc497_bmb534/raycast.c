@@ -10,7 +10,7 @@
 // GLOBAL VARIABLES
 char *fileIn, *fileOut;  
 enum objType {none, camera, sphere, plane, light};
-bool debugFlag = false;
+
 
 
 // FUNCTION for usage help
@@ -305,7 +305,6 @@ void constructR_d(float R_d[], float R_o[], int pixel[],
 
 // FUNCTION for SPHERE intersection
 float intersectSphere(Object *sphere, float R_o[3], float R_d[3]) {
-  //v3_normalize(R_d, R_d);
   float Xd = R_d[0];
   float Yd = R_d[1];
   float Zd = R_d[2];
@@ -329,11 +328,6 @@ float intersectSphere(Object *sphere, float R_o[3], float R_d[3]) {
   else {
     t0 = (-B - sqrt(discr)) / 2*A;
     t1 = (-B + sqrt(discr)) / 2*A;
-    if (debugFlag) {
-      printf("R_d: %f, %f, %f\n", Xd, Yd, Zd);
-      printf("A: %f, B: %f, C: %f\n", A, B, C);
-      printf("t0: %f, t1: %f\n", t0, t1);
-    }
   
       if (t0 < 0 && t1 < 0) {
 	return -1;
@@ -374,32 +368,26 @@ float intersectPlane(Object *plane, float R_o[3], float R_d[3]) {
 float shoot(float *R_d, float *R_o, Object *current, Object **nearestObj) {
   float t = -1;
   float nearestT = INFINITY;
-  
-  /* if (nearestObj == 0) { */
-  /*   return -1; */
-  /* } */
 
-  //printf("%f\n", nearestT);
-  //printf("%f\n", t);
+  
+  if (nearestObj == 0) {
+    return -1;
+  }
+  
   //*nearestObj = NULL;
   //printf("objectCount: %i\n", objectCount);
   for (int i = 0; i < objectCount; i += 1) {
     Object *object = &objects[i];
     //printf("object in shoot at index %i:\n", i);
-    
+    //printObj(object);
     if (object == current) {
       // skip current object
     }
+    //printObj(object);
     else if (object->kind == 3) {
-      if (debugFlag) {
-	printf("R_d: %f %f %f\n", R_d[0], R_d[1], R_d[2]);
-      }
       t = intersectPlane(object, R_o, R_d);
     }
     else if (object->kind == 2) {
-      if (debugFlag) {
-	printf("R_d: %f %f %f\n", R_d[0], R_d[1], R_d[2]);
-      }
       t = intersectSphere(object, R_o, R_d);
     }
     else if (object->kind == 1 || object->kind == 4) {
@@ -411,19 +399,8 @@ float shoot(float *R_d, float *R_o, Object *current, Object **nearestObj) {
     }
     if (t < nearestT && t > 0) {
       nearestT = t;
-      if (debugFlag) {
-	printf("intersecting object:\n");
-	printObj(object);
-      }
-      if (nearestObj != 0) {
-	*nearestObj = object;
-      }
+      *nearestObj = object;
     }
-  }
-
-  if (debugFlag) {
-    printf("t in shoot: %f\n", t);
-    printf("nearestT in shoot: %f\n", nearestT);
   }
 
   return nearestT;
@@ -441,57 +418,50 @@ float *illuminate(float *R_d, float *point, Object *currentOBJ){
     {
       // Get light and properties
       Object light = getObject(prevLight.index, 4);
+      float lightOrigin[3];
+      setArray(lightOrigin, light.location[0],
+	       light.location[1], light.location[2]);
+
+      //printf("CHK: got light & properties\n");
 
       // calculate necessary vectors
       float L[3];
-      v3_from_points(L, point, light.location);
-      // normalize light vector
-      float Lnorm[3];
-      v3_normalize(Lnorm, L);
-      
-      if (debugFlag) {
-	printf("L: %f %f %f\n", Lnorm[0], Lnorm[1], Lnorm[2]);
-	printf("R_d: %f %f %f\n", R_d[0], R_d[1], R_d[2]);
-      }
-      
-      float t = shoot(Lnorm, point, currentOBJ, 0);
+      v3_from_points(L, point, lightOrigin);
+      float t = shoot(L, point, currentOBJ, 0);
 
+      //printf("CHK: got necessary vectors\n");
 
       float Lmag = v3_length(L);
-      if (debugFlag) {
-	printf("CHECKPOINT: got t and Lmag\n");
-	printf("t in illuminate: %f\n", t);
-	printf("Lmag: %f\n", Lmag);
-      }
-      
       if (t > 0 && t < Lmag) {
-	continue;
+	break;
       }
 
-      if (debugFlag) {
-	printf("t in illuminate: %f\n", t);
-	printf("Lmag: %f\n", Lmag);
-      }
-      
+      //printf("CHK: got and verified Lmag\n");
+
       // radial attenuation
       float radAttn = (1 / (light.radAttn0
 			    + (light.radAttn1 * Lmag)
 			    + (light.radAttn2 * pow(Lmag, 2)) )
 		       );
 
+      //printf("radAttn: %f\n", radAttn);
 
+      // normalize light vector
+      float Lnorm[3];
+      v3_normalize(Lnorm, L);
+      
       // angular attenuation
       float Vo[3];
       float Vl[3];
       float VoDotVl;
       setArray(Vl, light.direction[0],
 	       light.direction[1], light.direction[2]);
-      setArray(Vo, -Lnorm[0], -Lnorm[1], -Lnorm[2]);
+      setArray(Vo, -Lnorm[0], -Lnorm[1], -Lnorm[2]);  ////// ERRORS somewhere near here
       VoDotVl = v3_dot_product(Vo, Vl);
       float angAttn;
 
       
-      if ((Vl[0] == 0 && Vl[1] == 0 && Vl[2] == 0) && light.theta == 0) {
+      if ((light.direction[0] == 0 && light.direction[1] == 0 && light.direction[2] == 0) && light.theta == 0) {
 	angAttn = 1;
       }
       else if (VoDotVl < cos(light.theta)) {
@@ -501,7 +471,10 @@ float *illuminate(float *R_d, float *point, Object *currentOBJ){
 	angAttn = pow(VoDotVl, light.angAttn0);
       }
       
+      //printf("angAttn: %f\n", angAttn);
+      
       // diffuse and specular components
+
       float N[3];
       if (currentOBJ->kind == 2) {
 	float norm[3];
@@ -514,15 +487,19 @@ float *illuminate(float *R_d, float *point, Object *currentOBJ){
 	setArray(N, currentOBJ->n[0], currentOBJ->n[1], currentOBJ->n[2]);
       }
 
+      // get camera object:
+      Object cam = getObject(0, 1);
       
       float Idiff[3];
       float Ispec[3];
       float R[3];
       float V[3];
+      float camPos[3];
 
+      setArray(camPos, 0, 0, 0);
       v3_reflect(R, Lnorm, N);
       v3_normalize(R, R);
-      setArray(V, R_d[0], R_d[1], R_d[2]);
+      v3_from_points(V, point, camPos);
       v3_normalize(V, V);
       
       float NdotL = v3_dot_product(N, Lnorm);
@@ -554,16 +531,16 @@ float *illuminate(float *R_d, float *point, Object *currentOBJ){
       blueComp += (angAttn * radAttn * (Ispec[2] + Idiff[2]));
       
 
-      /* printf("currentOBJ: "); */
-      /* printObj(currentOBJ); */
-      /* printf("Color: %f %f %f\n", redComp, greenComp, blueComp); */
+      //printf("currentOBJ: ");
+      //printObj(currentOBJ);
+      //printf("Color: %f %f %f\n", redComp, greenComp, blueComp);
       
       prevLight = light;
-
     }
+
+  clamp(color);
   
   setArray(color, redComp, greenComp, blueComp);
-  clamp(color);
   return color;
 }
 
@@ -601,17 +578,11 @@ int main(int argc, char* argv[]) {
 
   
   // Do intersections for every pixel (x, y)
-  for (int x = 0; x < imageWidth ; x += 1) {
+  for (int x = 0; x < imageWidth; x += 1) {
     for (int y = 0; y < imageHeight; y += 1) {
-      debugFlag = false;
       int z = -1;
       int pixel[] = {x, y, z};
       float R_d[3];
-
-      if (x == (33*20) && y == (29*20)) {
-	debugFlag = true;
-      }
-      
       constructR_d(R_d, R_o, pixel,
 		   imageWidth, imageHeight,
 		   camera.width, camera.height);
@@ -636,10 +607,6 @@ int main(int argc, char* argv[]) {
 	       R_o[1] + (R_d[1] * nearestT),
 	       R_o[2] + (R_d[2] * nearestT)
 	       );
-      if (debugFlag) {
-	printf("R_d: %f, %f, %f\n", R_d[0], R_d[1], R_d[2]);
-	printf("point: %f, %f, %f\n", point[0], point[1], point[2]);
-      }
       
       float *color;
       color = illuminate(R_d, point, nearestObj);
@@ -649,9 +616,6 @@ int main(int argc, char* argv[]) {
       for (int k = 0; k < 3; k += 1) {
 	int p = 3 * (imageWidth * y + x) + k;
 	if (nearestT > 0 && nearestT < INFINITY) {
-	  if (x == (33*20) && y == (29*20)) {
-	    setArray(color, 1, 1, 1);
-	  }
 	  image[p] = color[k] * 255;
 	}
 	else {
